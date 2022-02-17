@@ -1,6 +1,7 @@
 import os
 import cv2
 import shutil
+import numpy as np
 
 # Path to the directory containing the images
 videoFile = './media/input/468.mp4'
@@ -8,8 +9,8 @@ outputDir = './media/output/'
 
 # Configurations
 chunk_size_m = 3
-time_interval_s = 15
-scale_factor = 1
+time_interval_s = 14
+scale_factor = 0.25
 
 # Global video variables:
 video_width = 0
@@ -57,22 +58,23 @@ def resizeFrame(frame):
 
 
 def get_video_frames():
+    frames = []
     cap = cv2.VideoCapture(videoFile)
-
     for sec in range(0, int(video_duration)):
-        cap.set(cv2.CAP_PROP_POS_FRAMES, (sec * video_fps) - 1)
-        ret, frame = cap.read()
-
-        if not ret:
-            break
-
         if (sec % time_interval_s) == 0:
+            cap.set(cv2.CAP_PROP_POS_FRAMES, (sec * video_fps) - 1)
+            ret, frame = cap.read()
+
+            if not ret:
+                break
+
             print('Frame: ' + str(sec) + ' of ' + str(int(video_duration)))
-            cv2.imwrite('./media/output/thumb' + str(sec) + '.jpg', resizeFrame(frame))
+            frames.append(resizeFrame(frame))
 
 
     cap.release()
     cv2.destroyAllWindows()
+    return frames
 
 
 def main():
@@ -80,7 +82,36 @@ def main():
         print('Video file found: ' + videoFile)
         clean()
         load_video_info()
-        get_video_frames()
+        frames = get_video_frames()
+
+        frames_count = len(frames)
+        wide_img_quantity = int(frames_count / chunk_size_m)
+
+        if (frames_count % chunk_size_m) != 0:
+            print('Warning: frames count is not multiple of chunk size')
+            blank_images_quantity = chunk_size_m - (frames_count - (wide_img_quantity * chunk_size_m))
+            frame_size_width = int(frames[0].shape[0])
+            frame_size_height = int(frames[0].shape[1])
+            blank_image = np.zeros((frame_size_width, frame_size_height, 3), np.uint8)
+
+            for i in range(0, blank_images_quantity):
+                frames.append(blank_image)
+
+            wide_img_quantity += 1
+
+        print('frames: ' + str(len(frames)))
+
+        for i in range(0, wide_img_quantity):
+            list_of_images = []
+            for j in range(0 + (i * chunk_size_m), chunk_size_m * (i + 1)):
+                list_of_images.append(frames[j])
+
+            x = np.concatenate(list_of_images, axis=1)
+            cv2.imwrite('./media/output/' + str(i) + '.jpg', x)
+
+        print('Done!')
+
+
 
     else:
         print('Video file not found: ' + videoFile)
